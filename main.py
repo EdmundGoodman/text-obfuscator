@@ -1,5 +1,6 @@
 import random
 import nltk
+import copy
 import re
 
 from thesaurus import Thesaurus
@@ -7,10 +8,13 @@ from thesaurus import Thesaurus
 random.seed(0)
 
 
-class Obfuscator:
-    def __init__(self, textIn, thesaurus=Thesaurus()):
-        self.textIn = textIn
+class Obfuscated:
+    def __init__(self, textIn, thesaurus=Thesaurus(filename="./thesauruses/thesaurusA.pickle")):
+        self.textOut = None
         self.thesaurus = thesaurus
+        self.punctuation = ", . ? ! : ;".split(" ") #Add more ???
+
+        self.textIn = textIn
 
 
     @property
@@ -18,71 +22,138 @@ class Obfuscator:
         return self._textIn
 
     @textIn.setter
-    def textIn(self, textIn):
-        self._textIn = textIn
-        textSentences = self.splitToSentences(self._textIn)
-        textTokenised = self.tokenise(textSentences)
-        print(textTokenised)
-        textObfuscated = self.obfuscate(textTokenised)
-        textDetokenised = self.detokenise(textObfuscated)
-        self.textOut = self.getTextFromWordArray(textDetokenised)
+    def textIn(self, text):
+        self._textIn = text
+
+        preProcessedText = self.preProcess(text)
+        tokenisedText = self.tokenise(preProcessedText)
+        obfuscatedText = self.obfuscate(tokenisedText)
+        detokenisedText = self.detokenise(obfuscatedText)
+
+        self.textOut = detokenisedText
 
 
-    def preProcess(self, textIn):
-        pass
+    def preProcess(self, text):
+        #Schema: string -> string
+
+        #Add newlines to the beginning and end of the text for convenience
+        out = "\n" + text + "\n"
+        #Differentiate between single quotes as apostrophes and quotation marks
+        out = re.sub(
+            "\ \'(.*)(?!s)\'[\W]",
+            " \"\\1\"",
+            out
+        )
+
+        """out, lenOut = len(out), list(out)
+        apostrophesToReplace, insideFlag, insideMetaFlag = [], 0, 0
+        for i in range(lenOut):
+            if out[i]=="\"":
+                insideMetaFlag ^= 1
+            if i+1<lenOut and out[i]==" " and out[i+1]=="\'":
+                insideFlag ^= 1
+                apostrophesToReplace.append(i)
+            elif i+2<lenOut and out[i]=="\'" and out[i+1]!="s" and out[i+2]!=" ":
+                insideFlag ^= 1
+                apostrophesToReplace.append(i)
+
+        for i in apostrophesToReplace:
+            out[i] = "\""
+
+        print( "".join(out) )
+        exit()"""
+
+        return out
 
 
-    def splitToSentences(self, textIn):
-        #Schema: [sentence, sentence, ...]
-        return nltk.sent_tokenize(textIn)
+    def tokenise(self, text):
+        #Schema: string -> [<token>, (word, tag, capsFlag), ...]
+        out = []
+
+        #Split the text up into atomic words
+        words = nltk.word_tokenize(text)
+        """ This is where formatting is dropped - either add diff. formatting as
+        a feature, or explicitly preserve/drop it???"""
+        #Tag the words
+        tags = [list(tag) for tag in nltk.pos_tag(words)]
+        #Add other flags for convenience later
+        capsFlags = [[ word==word.capitalize() ] for word in words]
+        puncFlags = [[ word in self.punctuation ] for word in words]
+
+        for i in range(len(words)):
+            out.append(tags[i] + capsFlags[i] + puncFlags[i])
+        return out
 
 
-    def tokenise(self, textSentences):
-        #Schema: [(word, tag, capsFlag), (word, tag, capsFlag), ...]
-        textTokenised = []
-        for sentence in textSentences:
-            words = nltk.word_tokenize(sentence)
-            tags = nltk.pos_tag(words) #Change this to tag
-            capsFlags = [tuple([ word==word.capitalize() ]) for word in words]
-            textTokenised.append([
-                tags[i]+capsFlags[i]
-                for i in range(len(words))
-            ])
-        return textTokenised
+    def obfuscate(self, tokens):
+        #Schema: [<token>, (word, tag, capsFlag), ...] -> [<token>, (word, tag, capsFlag), ...]
+        out = tokens
+        funcs = [
+            self.substituteSynonyms, #Maybe do this later - after tenses/voice?
+            #self.substitutePunctuation,
+            #self.changePassiveActiveVoice, #Maybe do this first?
+            #self.changeTense,
+            #self.multiplyAdjectives
+            #self.breakUpSentences
+            #self.breakDownSentences
+            #self.changeUnitsAndCurrency,
+            #self.evaluateMathematics,
+            #self.formatText,
+        ]
+
+        #Consider how to do opt in/out of changes manually
+        for func in funcs:
+            out = func(out)
+        return out
 
 
-    def obfuscate(self, textTokenised):
-        textObfuscated = self.substituteSynonyms(textTokenised)
-        return textObfuscated
+    def detokenise(self, tokens):
+        #Schema: [<token>, (word, tag, capsFlag), ...] -> string
+
+        #https://stackoverflow.com/questions/21948019/python-untokenize-a-sentence
+        #Consider messing with things based on their tags if need be???
+        """print(tokens)
+        return nltk.tokenize.treebank.TreebankWordDetokenizer().detokenize([
+            token[0] for token in tokens
+        ])"""
+
+        text = ' '.join([token[0] for token in tokens])
+        step1 = text.replace("`` ", '"').replace(" ''", '"').replace('. . .',  '...')
+        step2 = step1.replace(" ( ", " (").replace(" ) ", ") ")
+        step3 = re.sub(r' ([.,:;?!%]+)([ \'"`])', r"\1\2", step2)
+        step4 = re.sub(r' ([.,:;?!%]+)$', r"\1", step3)
+        step5 = step4.replace(" '", "'").replace(" n't", "n't").replace(
+             "can not", "cannot")
+        step6 = step5.replace(" ` ", " '").strip()
+        return step6
 
 
-    def substituteSynonyms(self, textToSubstitute):
-        textSubstituted = []
-        return textToSubstitute #textSubstituted
+    def substituteSynonyms(self, tokens):
+        #Schema: [<token>, (word, tag, capsFlag), ...] -> [<token>, (word, tag, capsFlag), ...]
+        out = []
 
+        for i, token in enumerate(tokens):
+            synonyms, possSubstitutions = self.thesaurus.getSynonyms(token[0]), []
+            for synonym in synonyms:
+                #Check if the current synonym has the correct tag to fit in place
+                newSynonymTokens = copy.deepcopy(tokens)
+                newSynonymTokens[i][0] = synonym
+                newSynonymTokens = self.tokenise(self.detokenise(newSynonymTokens))
+                if newSynonymTokens[i][1] == token[1]:
+                    #Add any correct synonyms, and handle their capitalisation
+                    finalToken = newSynonymTokens[i]
+                    if finalToken[2]:
+                        finalToken[0] = finalToken[0].capitalize()
+                    possSubstitutions.append(finalToken)
 
-    def detokenise(self, textObfuscated):
-        #Schema: [(word, tag, capsFlag), (word, tag, capsFlag), ...] -> [word, word, ...]
-        return [[token[0] for token in sentence] for sentence in textObfuscated]
+            #If there are any possible substitutions, randomly make one
+            if len(possSubstitutions) == 0:
+                out.append(token)
+            else:
+                out.append( random.choice(possSubstitutions) )
 
+        return out
 
-    def getTextFromWordArray(self, textObfuscated):
-        textOut = " ".join([
-            " ".join([item for item in sentence])
-            for sentence in textObfuscated
-        ])
-
-        #Handle punctuation which shouldn't have a space before it
-        for item in [".",",","?","!","...",":",";",")","]","}",">","%"]:
-            textOut = textOut.replace(" "+item, item)
-        #Handle punctuation which shouldn't have a space after it
-        for item in ["(","[","{","<","#","@","£","$"]:
-            textOut = textOut.replace(item+" ", item)
-        #Handle the nltk tagged format of double quotation marks
-        for item in ["`` "," ''"]:
-            textOut = textOut.replace(item, "\"")
-
-        return textOut
 
 
     def __str__(self):
@@ -90,12 +161,16 @@ class Obfuscator:
 
 
 
-#text = "The quick brown fox jumped over the lazy dog, and this is a test (no really, it is - and it stole £20)!"
+if __name__=="__main__":
+    text = "The quick brown fox \'jumped\' over the lazy dog."
 
-text = "This is a test - Edmund's test. He says \"Hello\"."
+#    text = """
+#One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see his brown belly, slightly domed and divided by arches into stiff sections. The bedding was hardly able to cover it and seemed ready to slide off any moment. His many legs, pitifully thin compared with the size of the rest of him, waved about helplessly as he looked. "What's happened to me? " he thought. It wasn't a dream.
+#
+#His room, a proper human room although a little too small, lay peacefully between its four familiar walls. A collection of textile samples lay spread out on the table - Samsa was a travelling salesman - and above it there hung a picture that he had recently cut out of an illustrated magazine and housed in a nice, gilded frame. It showed a lady fitted out with a fur hat and fur boa who sat upright, raising a heavy fur muff that covered the whole of her lower arm towards the viewer. Gregor then turned to look out the window at the dull weather.
+#"""
 
-#Find something to match all single quote quotations
-
-print(text)
-t = Obfuscator(text)
-print(t)
+    o = Obfuscated(text)
+    print(o.textIn)
+    print()
+    print(o)
