@@ -32,6 +32,7 @@ class Text:
                 tokens[i]+capsFlags[i]
                 for i in range(len(words))
             ])
+        print(tokenisedSections)
         return tokenisedSections
 
         """punctuationNoSpaceAfter = "( [ { < # @ £ $".split(" ")

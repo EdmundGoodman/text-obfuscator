@@ -12,7 +12,7 @@ class Obfuscated:
     def __init__(self, textIn, thesaurus=Thesaurus(filename="./thesauruses/thesaurusA.pickle")):
         self.textOut = None
         self.thesaurus = thesaurus
-        self.punctuation = ", . ? ! : ;".split(" ") #Add more ???
+        self.punctuation = ", . ? ! : ; -".split(" ") #Add more ???
 
         self.textIn = textIn
 
@@ -162,7 +162,7 @@ class Obfuscated:
 
 
 if __name__=="__main__":
-    text = "The quick brown fox \'jumped\' over the lazy dog."
+    text = "The quick brown fox \'jumped\' over the \'lazy\' dog."
 
 #    text = """
 #One morning, when Gregor Samsa woke from troubled dreams, he found himself transformed in his bed into a horrible vermin. He lay on his armour-like back, and if he lifted his head a little he could see his brown belly, slightly domed and divided by arches into stiff sections. The bedding was hardly able to cover it and seemed ready to slide off any moment. His many legs, pitifully thin compared with the size of the rest of him, waved about helplessly as he looked. "What's happened to me? " he thought. It wasn't a dream.
